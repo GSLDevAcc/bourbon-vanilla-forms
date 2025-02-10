@@ -47,32 +47,49 @@ export default function ProductionReleaseForm() {
       }));
     }, []);
     
-    const getColorForValue = (value: string | number, rowIndex: number): string => {
-      if (!value) return "bg-slate-50";
-      const numValue = typeof value === "string" ? parseFloat(value) : value;
-      const option = toleranceData[rowIndex]?.options.find((opt) => opt.value === numValue);
-      return option ? option.color : "bg-white";
+  
+    const resetForm = () => {
+      const initializedSamples = toleranceData.map(() => ({
+        sample1: "",
+        sample2: "",
+        sample3: "",
+        sample4: "",
+        average: "",
+        deviation: "",
+        correctiveAction: ""
+      }));
+    
+      setFormData({
+        ...DEFAULT_PRODUCTION_RELEASE_STATE,
+        samples: initializedSamples
+      });
+      setCurrentId(null);
+      setSearchId("");
     };
 
-  const resetForm = () => {
-    setFormData(DEFAULT_PRODUCTION_RELEASE_STATE);
-    setCurrentId(null);
-    setSearchId("");
-  };
-
   const handleSearch = async () => {
-    if (!searchId) return;
-
+    if (!searchId.trim()) {
+      toast.error("Please enter a Production Release Order ID");
+      return;
+    }
+  
     setIsSearching(true);
     try {
       const { data, error } = await supabase
         .from("production_releases")
         .select("*")
-        .eq("production_release_order", searchId)
+        .eq("production_release_order", searchId.trim())
         .single();
-
-      if (error) throw error;
-
+  
+      if (error) {
+        if (error.code === 'PGRST116') { // No rows returned
+          toast.error("No record found with this Production Release Order ID");
+        } else {
+          throw error;
+        }
+        return;
+      }
+  
       if (data) {
         setCurrentId(data.id);
         setFormData({
@@ -81,10 +98,10 @@ export default function ProductionReleaseForm() {
           evaluationDate: data.evaluation_date,
           lotNumber: data.lot_number,
           productCode: data.product_code,
-          samples: data.samples,
+          samples: data.samples || DEFAULT_PRODUCTION_RELEASE_STATE.samples,
           canRelease: data.can_release,
-          elaboratedBy: data.elaborated_by,
-          elaboratedDate: data.elaborated_date,
+          elaboratedBy: data.elaborated_by || "",
+          elaboratedDate: data.elaborated_date || "",
           approvedBy: data.approved_by || "",
           approvedDate: data.approved_date || "",
         });
@@ -98,52 +115,104 @@ export default function ProductionReleaseForm() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  // Update the handleSubmit function
+  const getColorForValue = (value: string | number, rowIndex: number): string => {
+    // Check if value is explicitly undefined, null, or empty string
+    if (value === undefined || value === null || value === '') return "bg-gray-100";
+    
+    // Convert to number if it's a string
+    const numValue = typeof value === "string" ? parseFloat(value) : value;
+    
+    // Check if it's NaN after conversion
+    if (isNaN(numValue)) return "bg-gray-100";
+    
+    // Find the matching option (including 0)
+    const option = toleranceData[rowIndex]?.options.find(opt => opt.value === numValue);
+    
+    // Return the color or default
+    return option?.color || "bg-gray-100";
+  };
 
-    const formPayload = {
-      production_release_order: formData.productionReleaseOrder,
-      production_date: formData.productionDate,
-      evaluation_date: formData.evaluationDate,
-      lot_number: formData.lotNumber,
-      product_code: formData.productCode,
-      samples: formData.samples,
-      can_release: formData.canRelease,
-      elaborated_by: formData.elaboratedBy,
-      elaborated_date: formData.elaboratedDate,
-      approved_by: formData.approvedBy,
-      approved_date: formData.approvedDate,
-    };
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  // Basic validation
+  if (!formData.productionReleaseOrder || !formData.lotNumber) {
+    toast.error("Production Release Order and Lot Number are required");
+    return;
+  }
 
-    try {
-      let error;
-      
-      if (currentId) {
-        const { error: updateError } = await supabase
-          .from("production_releases")
-          .update(formPayload)
-          .eq("id", currentId);
-        error = updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from("production_releases")
-          .insert([formPayload]);
-        error = insertError;
+  if (!formData.productionDate || !formData.evaluationDate) {
+    toast.error("Production Date and Evaluation Date are required");
+    return;
+  }
+
+  setIsLoading(true);
+
+  const formPayload = {
+    production_release_order: formData.productionReleaseOrder,
+    production_date: formData.productionDate,
+    evaluation_date: formData.evaluationDate,
+    lot_number: formData.lotNumber,
+    product_code: formData.productCode,
+    samples: formData.samples,
+    can_release: formData.canRelease,
+    elaborated_by: formData.elaboratedBy,
+    elaborated_date: formData.elaboratedDate,
+    approved_by: formData.approvedBy,
+    approved_date: formData.approvedDate,
+  };
+
+  try {
+    let error;
+    
+    if (currentId) {
+      // Update existing record
+      const { error: updateError } = await supabase
+        .from("production_releases")
+        .update(formPayload)
+        .eq("id", currentId);
+      error = updateError;
+    } else {
+      // Check if record already exists
+      const { data: existingRecord } = await supabase
+        .from("production_releases")
+        .select("id")
+        .eq("production_release_order", formPayload.production_release_order)
+        .single();
+
+      if (existingRecord) {
+        toast.error("A record with this Production Release Order already exists");
+        setIsLoading(false);
+        return;
       }
 
-      if (error) throw error;
+      // Insert new record
+      const { error: insertError } = await supabase
+        .from("production_releases")
+        .insert([formPayload]);
+      error = insertError;
+    }
+
+    if (error) {
+      if (error.code === '23505') { // Unique constraint violation
+        toast.error("A record with this Production Release Order or Lot Number already exists");
+      } else {
+        throw error;
+      }
+    } else {
       toast.success(currentId ? "Form updated successfully" : "Form submitted successfully");
       if (!currentId) {
         resetForm();
       }
-    } catch (error) {
-      console.error("Error submitting form:", error);
-      toast.error("Error submitting form");
-    } finally {
-      setIsLoading(false);
     }
-  };
+  } catch (error) {
+    console.error("Error submitting form:", error);
+    toast.error("Error submitting form");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleToleranceSelect = (value: number) => {
     const { rowIndex, sampleIndex } = currentSample;
@@ -285,31 +354,42 @@ export default function ProductionReleaseForm() {
       <td className="border p-3">
         <div className="font-medium">{category.name}</div>
       </td>
-      {[1, 2, 3, 4].map((sampleNum) => (
-        <td key={sampleNum} className="border p-3">
-          <div className="flex flex-col items-center gap-2">
-            <div
-              className={`w-12 h-12 flex items-center justify-center border rounded-lg ${
-                formData.samples[rowIndex] 
-                  ? getColorForValue(formData.samples[rowIndex][`sample${sampleNum}` as keyof Sample], rowIndex)
-                  : "bg-slate-50"
-              } text-white`}
-            >
+     {/* Replace your existing sample cell rendering with this */}
+{/* Replace the sample cells in your table */}
+{[1, 2, 3, 4].map((sampleNum) => (
+  <td key={sampleNum} className="border p-3">
+    <div className="flex flex-col items-center gap-2">
+      <div
+        onClick={() => {
+          setCurrentSample({ rowIndex, sampleIndex: sampleNum - 1 });
+          setModalOpen(true);
+        }}
+        className={`w-16 h-16 flex flex-col items-center justify-center 
+          border rounded-lg shadow-sm cursor-pointer transition-all 
+          hover:shadow-md ${
+            formData.samples[rowIndex] 
+              ? getColorForValue(formData.samples[rowIndex][`sample${sampleNum}` as keyof Sample], rowIndex)
+              : "bg-gray-50 hover:bg-gray-100"
+          }`}
+      >
+        {formData.samples[rowIndex]?.[`sample${sampleNum}` as keyof Sample] !== "" ? (
+          <>
+            <span className="text-2xl font-bold text-white">
               {formData.samples[rowIndex]?.[`sample${sampleNum}` as keyof Sample]}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setCurrentSample({ rowIndex, sampleIndex: sampleNum - 1 });
-                setModalOpen(true);
-              }}
-            >
-              Set
-            </Button>
-          </div>
-        </td>
-      ))}
+            </span>
+            <span className="text-xs text-white text-opacity-90 mt-1">
+              {toleranceData[rowIndex]?.options.find(
+                opt => opt.value === Number(formData.samples[rowIndex]?.[`sample${sampleNum}` as keyof Sample])
+              )?.label.split('(')[0]}
+            </span>
+          </>
+        ) : (
+          <span className="text-gray-400 font-medium">Set</span>
+        )}
+      </div>
+    </div>
+  </td>
+))}
       <td className="border p-3 text-center font-medium">
         {formData.samples[rowIndex]?.average || ''}
       </td>
@@ -426,26 +506,46 @@ export default function ProductionReleaseForm() {
         </Button>
       </div>
 
-      {/* Tolerance Selection Dialog */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{toleranceData[currentSample.rowIndex].name}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            {toleranceData[currentSample.rowIndex].options.map((option, index) => (
-              <button
-                key={index}
-                className={`flex items-center p-4 text-left rounded-lg transition-colors ${option.color} text-white hover:opacity-90`}
-                onClick={() => handleToleranceSelect(option.value)}
-              >
-                <span className="font-medium mr-4 text-2xl">{option.value}</span>
-                <span className="flex-1">{option.label}</span>
-              </button>
-            ))}
+
+{/* Replace your existing Dialog section */}
+<Dialog open={modalOpen} onOpenChange={setModalOpen}>
+  <DialogContent className="bg-white p-0 sm:max-w-[425px]">
+    <DialogHeader className="p-6 pb-2">
+      <DialogTitle className="text-xl font-bold text-gray-900">
+        {toleranceData[currentSample.rowIndex]?.name}
+        <span className="ml-2 text-sm font-normal text-gray-500">
+          (Sample {currentSample.sampleIndex + 1})
+        </span>
+      </DialogTitle>
+    </DialogHeader>
+    <div className="p-6 pt-2 grid gap-3">
+      {toleranceData[currentSample.rowIndex]?.options.map((option, index) => (
+        <button
+          key={index}
+          onClick={() => handleToleranceSelect(option.value)}
+          className={`w-full ${option.color} text-white rounded-lg transition-all 
+            hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+        >
+          <div className="p-4 flex items-center gap-4">
+            <div className="w-12 h-12 bg-black bg-opacity-10 rounded-lg flex items-center justify-center">
+              <span className="text-2xl font-bold">{option.value}</span>
+            </div>
+            <div className="flex flex-col items-start">
+              <span className="font-medium">
+                {option.label.split('(')[0].trim()}
+              </span>
+              {option.label.includes('(') && (
+                <span className="text-sm opacity-90">
+                  ({option.label.split('(')[1]}
+                </span>
+              )}
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </button>
+      ))}
+    </div>
+  </DialogContent>
+</Dialog>
     </div>
   );
 }

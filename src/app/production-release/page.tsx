@@ -8,7 +8,7 @@ const ProductionReleaseForm = dynamic(
 
 export default function ProductionReleasePage() {
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="w-full max-w-7xl mx-auto px-4">
       <ProductionReleaseForm />
     </div>
   );

@@ -303,7 +303,7 @@ export const DEFAULT_PRODUCTION_RELEASE_STATE: ProductionReleaseFormData = {
   evaluationDate: "",
   lotNumber: "",
   productCode: "",
-  samples: Array(5).fill(null).map(() => ({
+  samples: Array(8).fill(null).map(() => ({
     sample1: "",
     sample2: "",
     sample3: "",

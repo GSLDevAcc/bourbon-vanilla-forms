@@ -59,6 +59,60 @@ const ProductionSheetForm = () => {
     });
   };
 
+  // Add these functions to your ProductionSheetForm component
+
+const validateRequiredFields = (formData: FormState): string[] => {
+  const errors: string[] = [];
+
+  // Required field validation
+  if (!formData.productReleaseOrder) errors.push('Product Release Order is required');
+  if (!formData.productReference) errors.push('Product Reference is required');
+  if (!formData.descriptionOfProduct) errors.push('Description of Product is required');
+  if (!formData.lotNumber) errors.push('Lot Number is required');
+  if (!formData.date) errors.push('Date is required');
+  if (!formData.quantityProduced) errors.push('Quantity Produced is required');
+
+  // Validate process steps
+  if (!formData.process_steps.date) errors.push('Process Step Date is required');
+  if (!formData.process_steps.time) errors.push('Process Step Time is required');
+  if (!formData.process_steps.outflowFromStock) errors.push('Outflow From Stock is required');
+  if (!formData.process_steps.weigh) errors.push('Weigh is required');
+  if (!formData.process_steps.mixing) errors.push('Mixing is required');
+  if (!formData.process_steps.storekeeper) errors.push('Storekeeper is required');
+
+  // Validate inspection items
+  formData.inspection_items.forEach((item, index) => {
+    if (!item.answer) errors.push(`Inspection item ${index + 1} answer is required`);
+  });
+
+  // Validate at least one production step
+  const hasProductionStep = formData.production_steps.some(step => 
+    step.personPerforming || step.packagingCheck || step.podPlacement
+  );
+  if (!hasProductionStep) errors.push('At least one production step is required');
+
+  // Validate control items
+  formData.control_items.forEach((item, index) => {
+    if (!item.conform && !item.nonConform) {
+      errors.push(`Control item "${item.verification}" requires a conformity check`);
+    }
+  });
+
+  return errors;
+};
+
+const validateFormBeforeSubmit = (formData: FormState): boolean => {
+  const errors = validateRequiredFields(formData);
+  
+  if (errors.length > 0) {
+    // Show all validation errors
+    errors.forEach(error => toast.error(error));
+    return false;
+  }
+  
+  return true;
+};
+
   const handleFilteringChange = (field: keyof FormState['filtering'], value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -128,9 +182,12 @@ const ProductionSheetForm = () => {
   };
 
   const resetForm = () => {
-    setFormData(DEFAULT_FORM_STATE);
-    setCurrentId(null);
-    setSearchId('');
+    if (window.confirm('Are you sure you want to clear the form? All unsaved changes will be lost.')) {
+      setFormData(DEFAULT_FORM_STATE);
+      setCurrentId(null);
+      setSearchId('');
+      toast.success('Form cleared');
+    }
   };
 
   const handleRawMaterialChange = (index: number, field: keyof RawMaterial, value: string) => {
@@ -148,58 +205,72 @@ const ProductionSheetForm = () => {
   };
 
   const handleSearch = async () => {
-  if (!searchId) return;
-
-  setIsSearching(true);
-  try {
-    const { data, error } = await supabase
-      .from('production_sheets')
-      .select('*')
-      .eq('product_release_order', searchId)
-      .single();
-
-    if (error) throw error;
-
-    if (data) {
-      setCurrentId(data.id);
-      setFormData({
-        productReleaseOrder: data.product_release_order,
-        productReference: data.product_reference,
-        descriptionOfProduct: data.description_of_product,
-        lotNumber: data.lot_number,
-        date: data.date,
-        quantityProduced: data.quantity_produced,
-        filledBy: data.filled_by,
-        filledDate: data.filled_date,
-        approvedBy: data.approved_by,
-        approvedDate: data.approved_date,
-        raw_materials: data.raw_materials || DEFAULT_FORM_STATE.raw_materials, // Updated
-        process_steps: data.process_steps,
-        inspection_items: data.inspection_items,
-        filtering: data.filtering,
-        sieving: data.sieving,
-        bottle_closure: data.bottle_closure,
-        production_steps: data.production_steps,
-        control_items: data.control_items,
-        glass_breakage: data.glass_breakage
-      });
-      toast.success('Form data loaded successfully');
+    if (!searchId.trim()) {
+      toast.error('Please enter a Production Release Order ID');
+      return;
     }
-  } catch (error) {
-    console.error('Error searching:', error);
-    toast.error('Error loading form data');
-  } finally {
-    setIsSearching(false);
-  }
-};
-
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
   
-   // Update your handleSubmit function's formPayload
-const formPayload = {
+    setIsSearching(true);
+    try {
+      const { data, error } = await supabase
+        .from('production_sheets')
+        .select('*')
+        .eq('product_release_order', searchId.trim())
+        .single();
+  
+      if (error) {
+        if (error.code === 'PGRST116') {
+          toast.error('No production sheet found with this ID');
+          return;
+        }
+        throw error;
+      }
+  
+      if (data) {
+        setCurrentId(data.id);
+        setFormData({
+          productReleaseOrder: data.product_release_order,
+          productReference: data.product_reference,
+          descriptionOfProduct: data.description_of_product,
+          lotNumber: data.lot_number,
+          date: data.date,
+          quantityProduced: data.quantity_produced,
+          filledBy: data.filled_by,
+          filledDate: data.filled_date,
+          approvedBy: data.approved_by,
+          approvedDate: data.approved_date,
+          raw_materials: data.raw_materials || DEFAULT_FORM_STATE.raw_materials,
+          process_steps: data.process_steps,
+          inspection_items: data.inspection_items,
+          filtering: data.filtering,
+          sieving: data.sieving,
+          bottle_closure: data.bottle_closure,
+          production_steps: data.production_steps,
+          control_items: data.control_items,
+          glass_breakage: data.glass_breakage
+        });
+        toast.success('Production sheet loaded successfully');
+      }
+    } catch (error) {
+      console.error('Error searching:', error);
+      toast.error('Error loading production sheet');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  // Validate form before submission
+  if (!validateFormBeforeSubmit(formData)) {
+    return;
+  }
+
+  setIsLoading(true);
+
+  const formPayload = {
     product_release_order: formData.productReleaseOrder,
     product_reference: formData.productReference,
     description_of_product: formData.descriptionOfProduct,
@@ -210,7 +281,7 @@ const formPayload = {
     filled_date: formData.filledDate,
     approved_by: formData.approvedBy,
     approved_date: formData.approvedDate,
-    raw_materials: formData.raw_materials, // Updated
+    raw_materials: formData.raw_materials,
     process_steps: formData.process_steps,
     inspection_items: formData.inspection_items,
     filtering: formData.filtering,
@@ -220,38 +291,52 @@ const formPayload = {
     control_items: formData.control_items,
     glass_breakage: formData.glass_breakage
   };
-  
-    try {
-      let error;
-      
-      if (currentId) {
-        const { error: updateError } = await supabase
-          .from('production_sheets')
-          .update(formPayload)
-          .eq('id', currentId);
-        error = updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from('production_sheets')
-          .insert([formPayload]);
-        error = insertError;
-      }
-  
-      if (error) throw error;
-      toast.success(currentId ? 'Form updated successfully' : 'Form submitted successfully');
-      if (!currentId) {
-        resetForm();
-      }
-    } catch (error) {
-      console.error('Error submitting form:', error);
-      toast.error('Error submitting form');
-    } finally {
-      setIsLoading(false);
+
+  try {
+    let error;
+    
+    if (currentId) {
+      const { error: updateError } = await supabase
+        .from('production_sheets')
+        .update(formPayload)
+        .eq('id', currentId);
+      error = updateError;
+    } else {
+      const { error: insertError } = await supabase
+        .from('production_sheets')
+        .insert([formPayload]);
+      error = insertError;
     }
-  };
+
+    if (error) {
+      if (error.code === '23505') {
+        if (error.message.includes('product_release_order')) {
+          toast.error('A production sheet with this Release Order already exists');
+        } else if (error.message.includes('lot_number')) {
+          toast.error('A production sheet with this Lot Number already exists');
+        } else {
+          toast.error('A duplicate record already exists');
+        }
+        return;
+      }
+      throw error;
+    }
+
+    toast.success(currentId ? 'Production sheet updated successfully' : 'Production sheet submitted successfully');
+    
+    if (!currentId) {
+      resetForm();
+    }
+  } catch (error) {
+    console.error('Error submitting form:', error);
+    toast.error('Error submitting production sheet');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-7xl mx-auto p-6 space-y-6">
+    <form onSubmit={handleSubmit} className="w-full max-w-7xl mx-auto p-4">
       {/* Search Section */}
       <div className="flex gap-4 mb-6">
         <Input
