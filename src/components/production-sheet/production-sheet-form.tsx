@@ -1,7 +1,7 @@
 // src/components/production-sheet/production-sheet-form.tsx
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,6 +26,8 @@ import {
   ControlItem,
   RawMaterial 
 } from '@/lib/types';
+import SuccessAnimation from '@/components/ui/success-animation';
+
 
 const ProductionSheetForm = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -33,7 +35,8 @@ const ProductionSheetForm = () => {
   const [searchId, setSearchId] = useState('');
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormState>(DEFAULT_FORM_STATE);
-
+const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   // Form Handlers
   const handleProcessStepChange = (field: keyof ProcessStep, value: string) => {
     setFormData(prev => ({
@@ -216,20 +219,20 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
         .from('production_sheets')
         .select('*')
         .eq('product_release_order', searchId.trim())
-        .single();
+        .maybeSingle();
   
       if (error) {
-        if (error.code === 'PGRST116') {
-          toast.error('No production sheet found with this ID');
-          return;
-        }
         throw error;
       }
   
-      if (data) {
-        setCurrentId(data.id);
-        setFormData({
-          productReleaseOrder: data.product_release_order,
+      if (!data) {
+        toast.error('No production sheet found with this ID');
+        return;
+      }
+  
+      setCurrentId(data.id);
+    setFormData({
+      productReleaseOrder: data.product_release_order,
           productReference: data.product_reference,
           descriptionOfProduct: data.description_of_product,
           lotNumber: data.lot_number,
@@ -250,90 +253,124 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
           glass_breakage: data.glass_breakage
         });
         toast.success('Production sheet loaded successfully');
+      } catch (error: any) {
+        console.error('Error searching:', error);
+        toast.error(error.message || 'Error loading production sheet');
+      } finally {
+        setIsSearching(false);
       }
-    } catch (error) {
-      console.error('Error searching:', error);
-      toast.error('Error loading production sheet');
-    } finally {
-      setIsSearching(false);
-    }
-  };
+    };
 
-
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  // Validate form before submission
-  if (!validateFormBeforeSubmit(formData)) {
-    return;
-  }
-
-  setIsLoading(true);
-
-  const formPayload = {
-    product_release_order: formData.productReleaseOrder,
-    product_reference: formData.productReference,
-    description_of_product: formData.descriptionOfProduct,
-    lot_number: formData.lotNumber,
-    date: formData.date,
-    quantity_produced: formData.quantityProduced,
-    filled_by: formData.filledBy,
-    filled_date: formData.filledDate,
-    approved_by: formData.approvedBy,
-    approved_date: formData.approvedDate,
-    raw_materials: formData.raw_materials,
-    process_steps: formData.process_steps,
-    inspection_items: formData.inspection_items,
-    filtering: formData.filtering,
-    sieving: formData.sieving,
-    bottle_closure: formData.bottle_closure,
-    production_steps: formData.production_steps,
-    control_items: formData.control_items,
-    glass_breakage: formData.glass_breakage
-  };
-
-  try {
-    let error;
-    
-    if (currentId) {
-      const { error: updateError } = await supabase
-        .from('production_sheets')
-        .update(formPayload)
-        .eq('id', currentId);
-      error = updateError;
-    } else {
-      const { error: insertError } = await supabase
-        .from('production_sheets')
-        .insert([formPayload]);
-      error = insertError;
-    }
-
-    if (error) {
-      if (error.code === '23505') {
-        if (error.message.includes('product_release_order')) {
-          toast.error('A production sheet with this Release Order already exists');
-        } else if (error.message.includes('lot_number')) {
-          toast.error('A production sheet with this Lot Number already exists');
+  useEffect(() => {
+    // Test Supabase connection
+    const testConnection = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('production_sheets')
+          .select('count')
+          .limit(1);
+        
+        if (error) {
+          console.error('Supabase connection error:', error);
         } else {
-          toast.error('A duplicate record already exists');
+          console.log('Supabase connection successful');
         }
-        return;
+      } catch (error) {
+        console.error('Failed to connect to Supabase:', error);
       }
-      throw error;
-    }
+    };
+  
+    testConnection();
+  }, []);
 
-    toast.success(currentId ? 'Production sheet updated successfully' : 'Production sheet submitted successfully');
+  
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    if (!currentId) {
-      resetForm();
+    // Validate form before submission
+    if (!validateFormBeforeSubmit(formData)) {
+      return;
     }
-  } catch (error) {
-    console.error('Error submitting form:', error);
-    toast.error('Error submitting production sheet');
-  } finally {
-    setIsLoading(false);
-  }
-};
+  
+    setIsLoading(true);
+  
+    try {
+      // Check for existing record first with proper query format
+      if (!currentId) {
+        const { data: existingData, error: checkError } = await supabase
+          .from('production_sheets')
+          .select('id')
+          .eq('product_release_order', formData.productReleaseOrder.trim())
+          .maybeSingle();
+  
+        if (checkError) {
+          throw checkError;
+        }
+  
+        if (existingData) {
+          toast.error('A production sheet with this Release Order already exists');
+          setIsLoading(false);
+          return;
+        }
+      }
+  
+      const formPayload = {
+        product_release_order: formData.productReleaseOrder.trim(),
+        product_reference: formData.productReference,
+        description_of_product: formData.descriptionOfProduct,
+        lot_number: formData.lotNumber,
+        date: formData.date,
+        quantity_produced: formData.quantityProduced,
+        filled_by: formData.filledBy,
+        filled_date: formData.filledDate,
+        approved_by: formData.approvedBy,
+        approved_date: formData.approvedDate,
+        raw_materials: formData.raw_materials,
+        process_steps: formData.process_steps,
+        inspection_items: formData.inspection_items,
+        filtering: formData.filtering,
+        sieving: formData.sieving,
+        bottle_closure: formData.bottle_closure,
+        production_steps: formData.production_steps,
+        control_items: formData.control_items,
+        glass_breakage: formData.glass_breakage
+      };
+  
+      let result;
+      
+      if (currentId) {
+        result = await supabase
+          .from('production_sheets')
+          .update(formPayload)
+          .eq('id', currentId)
+          .select();
+      } else {
+        result = await supabase
+          .from('production_sheets')
+          .insert([formPayload])
+          .select();
+      }
+  
+      if (result.error) {
+        console.error('Supabase error:', result.error);
+        throw result.error;
+      }
+  
+     toast.success('Production Sheet submitted successfully!');
+                 setSuccessMessage('Production Sheet submitted successfully!');
+                 setShowSuccess(true);
+      
+      // if (!currentId) {
+      //   resetForm();
+      // }
+    } catch (error: any) {
+      console.error('Error submitting form:', error);
+      toast.error(error.message || 'Error submitting production sheet');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-7xl mx-auto p-4">
@@ -926,7 +963,13 @@ const handleSubmit = async (e: React.FormEvent) => {
           {isLoading ? 'Submitting...' : currentId ? 'Update Form' : 'Submit Form'}
         </Button>
       </div>
+      <SuccessAnimation 
+      isOpen={showSuccess}
+      message={successMessage}
+      onClose={() => setShowSuccess(false)}
+    />
     </form>
+    
   );
 };
 

@@ -1,12 +1,13 @@
 // src/components/volume-control/volume-control-form.tsx
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from "sonner";
 import { supabase } from '@/lib/supabase';
 import { VolumeControlFormData, DEFAULT_VOLUME_CONTROL_STATE } from '@/lib/types';
+import SuccessAnimation from '@/components/ui/success-animation';
 
 const VolumeControlForm = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -15,6 +16,8 @@ const VolumeControlForm = () => {
   const [currentId, setCurrentId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<VolumeControlFormData>(DEFAULT_VOLUME_CONTROL_STATE);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   // First, let's define allowed fields for cylinder changes
   type CylinderField = 'ml100' | 'ml250' | 'ml1000' | 'conforming';
@@ -27,77 +30,75 @@ const VolumeControlForm = () => {
 
   // Add these validation functions to your VolumeControlForm component
 
-const validateRequiredFields = (formData: VolumeControlFormData): string[] => {
-  const errors: string[] = [];
-
-  // Basic field validation
-  if (!formData.productReleaseOrder) errors.push('Product Release Order is required');
-  if (!formData.date) errors.push('Date is required');
-  if (!formData.productReference) errors.push('Product Reference is required');
-  if (!formData.quantityProduced) errors.push('Quantity Produced is required');
-  if (!formData.descriptionOfProduct) errors.push('Description of Product is required');
-  if (!formData.lotNumber) errors.push('Lot Number is required');
-  if (!formData.client) errors.push('Client is required');
-  if (!formData.alcoholContent) errors.push('Alcohol Content is required');
-  if (!formData.acceptableWeightRange) errors.push('Acceptable Weight Range is required');
-
-  // Validate measuring cylinders
-  formData.measuringCylinders.forEach((cylinder, index) => {
-    const cylinderName = cylinder.type;
-    if (!cylinder.ml100) errors.push(`${cylinderName}: 100ML measurement is required`);
-    if (!cylinder.ml250) errors.push(`${cylinderName}: 250ML measurement is required`);
-    if (!cylinder.ml1000) errors.push(`${cylinderName}: 1000ML measurement is required`);
-    if (!cylinder.conforming) errors.push(`${cylinderName}: Conformity check is required`);
-  });
-
-  // Validate weight measurements
-  // Only validate rows that have any data entered
-  formData.weightMeasurements.forEach((measurement, index) => {
-    const hasAnyData = measurement.time || measurement.weights.some(w => w) || measurement.conforming;
-    
-    if (hasAnyData) {
-      if (!measurement.time) errors.push(`Weight measurement row ${index + 1}: Time is required`);
-      
-      const filledWeights = measurement.weights.filter(w => w !== '');
-      if (filledWeights.length > 0 && filledWeights.length < 6) {
-        errors.push(`Weight measurement row ${index + 1}: All weight values must be filled`);
+  const validateRequiredFields = (formData: VolumeControlFormData): string[] => {
+    const errors: string[] = [];
+  
+    // Basic field validation
+    if (!formData.productReleaseOrder) errors.push('Product Release Order is required');
+    if (!formData.date) errors.push('Date is required');
+    if (!formData.productReference) errors.push('Product Reference is required');
+    if (!formData.quantityProduced) errors.push('Quantity Produced is required');
+    if (!formData.descriptionOfProduct) errors.push('Description of Product is required');
+    if (!formData.lotNumber) errors.push('Lot Number is required');
+    if (!formData.client) errors.push('Client is required');
+    if (!formData.alcoholContent) errors.push('Alcohol Content is required');
+    if (!formData.acceptableWeightRange) errors.push('Acceptable Weight Range is required');
+  
+    // Validate measuring cylinders only if any value is entered
+    formData.measuringCylinders.forEach((cylinder, index) => {
+      const hasAnyValue = cylinder.ml100 || cylinder.ml250 || cylinder.ml1000;
+      if (hasAnyValue) {
+        const cylinderName = cylinder.type;
+        if (!cylinder.ml100) errors.push(`${cylinderName}: 100ML measurement is required`);
+        if (!cylinder.ml250) errors.push(`${cylinderName}: 250ML measurement is required`);
+        if (!cylinder.ml1000) errors.push(`${cylinderName}: 1000ML measurement is required`);
+        if (!cylinder.conforming) errors.push(`${cylinderName}: Conformity check is required`);
       }
+    });
+  
+    // Validate weight measurements only if any data is entered in a row
+    formData.weightMeasurements.forEach((measurement, index) => {
+      const hasAnyData = measurement.time || measurement.weights.some(w => w);
       
-      if (filledWeights.length > 0 && !measurement.conforming) {
-        errors.push(`Weight measurement row ${index + 1}: Conformity check is required`);
-      }
-
-      // Validate weight values are numeric
-      measurement.weights.forEach((weight, widx) => {
-        if (weight && isNaN(Number(weight))) {
-          errors.push(`Weight measurement row ${index + 1}, weight ${widx + 1}: Must be a valid number`);
+      if (hasAnyData) {
+        if (!measurement.time) errors.push(`Weight measurement row ${index + 1}: Time is required`);
+        
+        const filledWeights = measurement.weights.filter(w => w !== '');
+        if (filledWeights.length > 0 && filledWeights.length < 6) {
+          errors.push(`Weight measurement row ${index + 1}: All weight values must be filled`);
         }
-      });
+        
+        if (filledWeights.length > 0 && !measurement.conforming) {
+          errors.push(`Weight measurement row ${index + 1}: Conformity check is required`);
+        }
+      }
+    });
+  
+    // Validate approval section only if any approval data is entered
+    if (formData.checkedBy || formData.checkedDate) {
+      if (!formData.checkedBy) errors.push('Checked by name is required');
+      if (!formData.checkedDate) errors.push('Checked date is required');
     }
-  });
-
-  // Validation for approval section if any approval data is entered
-  if (formData.checkedBy || formData.checkedDate) {
-    if (!formData.checkedBy) errors.push('Checked by name is required');
-    if (!formData.checkedDate) errors.push('Checked date is required');
-  }
-
-  if (formData.verifiedBy || formData.verifiedDate) {
-    if (!formData.verifiedBy) errors.push('Verified by name is required');
-    if (!formData.verifiedDate) errors.push('Verified date is required');
-  }
-
-  return errors;
-};
+  
+    if (formData.verifiedBy || formData.verifiedDate) {
+      if (!formData.verifiedBy) errors.push('Verified by name is required');
+      if (!formData.verifiedDate) errors.push('Verified date is required');
+    }
+  
+    return errors;
+  };
 
 const validateFormBeforeSubmit = (formData: VolumeControlFormData): boolean => {
+  console.log('Starting form validation');
   const errors = validateRequiredFields(formData);
   
   if (errors.length > 0) {
+    console.log('Validation errors:', errors);
     errors.forEach(error => toast.error(error));
     return false;
   }
   
+  console.log('Form validation passed');
   return true;
 };
   
@@ -125,118 +126,158 @@ const validateFormBeforeSubmit = (formData: VolumeControlFormData): boolean => {
         .from('volume_controls')
         .select('*')
         .eq('product_release_order', searchId.trim())
-        .single();
+        .maybeSingle();
   
       if (error) {
-        if (error.code === 'PGRST116') {
-          toast.error('No volume control sheet found with this ID');
-          return;
-        }
         throw error;
       }
   
-      if (data) {
-        setCurrentId(data.id);
-        setFormData({
-          productReleaseOrder: data.product_release_order,
-          date: data.date,
-          productReference: data.product_reference,
-          quantityProduced: data.quantity_produced,
-          descriptionOfProduct: data.description_of_product,
-          lotNumber: data.lot_number,
-          client: data.client,
-          alcoholContent: data.alcohol_content,
-          acceptableWeightRange: data.acceptable_weight_range,
-          measuringCylinders: data.measuring_cylinders,
-          cylinderNonConforming: data.cylinder_non_conforming,
-          weightMeasurements: data.weight_measurements,
-          checkedBy: data.checked_by,
-          checkedDate: data.checked_date,
-          verifiedBy: data.verified_by,
-          verifiedDate: data.verified_date
-        });
-        toast.success('Volume control sheet loaded successfully');
+      if (!data) {
+        toast.error('No volume control sheet found with this ID');
+        return;
       }
-    } catch (error) {
+  
+      setCurrentId(data.id);
+      setFormData({
+        productReleaseOrder: data.product_release_order,
+        date: data.date,
+        productReference: data.product_reference,
+        quantityProduced: data.quantity_produced,
+        descriptionOfProduct: data.description_of_product,
+        lotNumber: data.lot_number,
+        client: data.client,
+        alcoholContent: data.alcohol_content,
+        acceptableWeightRange: data.acceptable_weight_range,
+        measuringCylinders: data.measuring_cylinders,
+        cylinderNonConforming: data.cylinder_non_conforming,
+        weightMeasurements: data.weight_measurements,
+        checkedBy: data.checked_by || '',
+        checkedDate: data.checked_date || '',
+        verifiedBy: data.verified_by || '',
+        verifiedDate: data.verified_date || ''
+      });
+      toast.success('Volume control sheet loaded successfully');
+    } catch (error: any) {
       console.error('Error searching:', error);
-      toast.error('Error loading volume control sheet');
+      toast.error(error.message || 'Error loading volume control sheet');
     } finally {
       setIsSearching(false);
     }
   };
 
   // Update these handlers in your VolumeControlForm component
-
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  // Validate form before submission
-  if (!validateFormBeforeSubmit(formData)) {
-    return;
-  }
-
-  setIsLoading(true);
-
-  const formPayload = {
-    product_release_order: formData.productReleaseOrder,
-    date: formData.date,
-    product_reference: formData.productReference,
-    quantity_produced: formData.quantityProduced,
-    description_of_product: formData.descriptionOfProduct,
-    lot_number: formData.lotNumber,
-    client: formData.client,
-    alcohol_content: formData.alcoholContent,
-    acceptable_weight_range: formData.acceptableWeightRange,
-    measuring_cylinders: formData.measuringCylinders,
-    cylinder_non_conforming: formData.cylinderNonConforming,
-    weight_measurements: formData.weightMeasurements,
-    checked_by: formData.checkedBy,
-    checked_date: formData.checkedDate,
-    verified_by: formData.verifiedBy,
-    verified_date: formData.verifiedDate
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('Submit button clicked');
+    
+    if (!validateFormBeforeSubmit(formData)) {
+      return;
+    }
+  
+    try {
+      setIsLoading(true);
+  
+      // First check if records exist
+      const { data: existingRecord } = await supabase
+        .from('volume_controls')
+        .select('id, lot_number, product_release_order')
+        .or(`lot_number.eq.${formData.lotNumber.trim()},product_release_order.eq.${formData.productReleaseOrder.trim()}`)
+        .maybeSingle();
+  
+      if (existingRecord) {
+        if (existingRecord.lot_number === formData.lotNumber.trim()) {
+          toast.error(`Lot Number "${formData.lotNumber}" is already in use`);
+          setIsLoading(false);
+          return;
+        }
+        if (existingRecord.product_release_order === formData.productReleaseOrder.trim()) {
+          toast.error(`Production Release Order "${formData.productReleaseOrder}" is already in use`);
+          setIsLoading(false);
+          return;
+        }
+      }
+  
+      const formPayload = {
+        product_release_order: formData.productReleaseOrder.trim(),
+        date: formData.date,
+        product_reference: formData.productReference.trim(),
+        quantity_produced: formData.quantityProduced.trim(),
+        description_of_product: formData.descriptionOfProduct.trim(),
+        lot_number: formData.lotNumber.trim(),
+        client: formData.client.trim(),
+        alcohol_content: formData.alcoholContent.trim(),
+        acceptable_weight_range: formData.acceptableWeightRange.trim(),
+        measuring_cylinders: formData.measuringCylinders,
+        cylinder_non_conforming: formData.cylinderNonConforming,
+        weight_measurements: formData.weightMeasurements,
+        checked_by: formData.checkedBy?.trim() || null,
+        checked_date: formData.checkedDate || null,
+        verified_by: formData.verifiedBy?.trim() || null,
+        verified_date: formData.verifiedDate || null
+      };
+  
+      console.log('Submitting payload:', formPayload);
+  
+      const { data, error } = await supabase
+        .from('volume_controls')
+        .insert([formPayload])
+        .select()
+        .single();
+  
+      if (error) {
+        console.error('Submission error:', error);
+        if (error.code === '23505') {
+          if (error.message.includes('lot_number')) {
+            toast.error(`Lot Number "${formData.lotNumber}" is already in use`);
+          } else if (error.message.includes('product_release_order')) {
+            toast.error(`Production Release Order "${formData.productReleaseOrder}" is already in use`);
+          } else {
+            toast.error('This record already exists');
+          }
+          return;
+        }
+        throw error;
+      }
+  
+      console.log('Submission successful:', data);
+      toast.success('Volume control submitted successfully!');
+      setSuccessMessage('Volume control submitted successfully!');
+      setShowSuccess(true);
+      
+      // Reset form on successful submission
+      //handleReset();
+  
+    } catch (error: any) {
+      console.error('Error:', error);
+      toast.error(error.message || 'An error occurred while submitting the form');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  try {
-    let error;
-    
-    if (currentId) {
-      const { error: updateError } = await supabase
+  const testSupabaseConnection = async () => {
+    try {
+      const { data, error } = await supabase
         .from('volume_controls')
-        .update(formPayload)
-        .eq('id', currentId);
-      error = updateError;
-    } else {
-      const { error: insertError } = await supabase
-        .from('volume_controls')
-        .insert([formPayload]);
-      error = insertError;
-    }
-
-    if (error) {
-      if (error.code === '23505') {
-        if (error.message.includes('product_release_order')) {
-          toast.error('A volume control sheet with this Release Order already exists');
-        } else if (error.message.includes('lot_number')) {
-          toast.error('A volume control sheet with this Lot Number already exists');
-        } else {
-          toast.error('A duplicate record already exists');
-        }
-        return;
+        .select('count')
+        .limit(1);
+  
+      console.log('Supabase connection test:', { data, error });
+      
+      if (error) {
+        console.error('Supabase connection error:', error);
+      } else {
+        console.log('Supabase connection successful');
       }
-      throw error;
+    } catch (error) {
+      console.error('Failed to connect to Supabase:', error);
     }
-
-    toast.success(currentId ? 'Volume control sheet updated successfully' : 'Volume control sheet submitted successfully');
-    if (!currentId) {
-      handleReset();
-    }
-  } catch (error) {
-    console.error('Error submitting form:', error);
-    toast.error('Error submitting volume control sheet');
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
+  
+  // Add this useEffect
+  useEffect(() => {
+    testSupabaseConnection();
+  }, []);
 
 const handleReset = () => {
   if (window.confirm('Are you sure you want to clear the form? All unsaved changes will be lost.')) {
@@ -268,7 +309,7 @@ const handleReset = () => {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-6 space-y-6 bg-white rounded-lg shadow">
+    <form onSubmit={handleSubmit} className="w-full max-w-7xl mx-auto p-6 space-y-6 bg-white rounded-lg shadow">
       <div className="flex gap-4 mb-6">
         <div className="flex-1">
           <Input
@@ -588,19 +629,27 @@ const handleReset = () => {
       {/* Form Actions */}
       <div className="flex justify-end gap-4 mt-6">
         <Button 
+          type="button"  // Add type="button" for reset
           variant="outline"
           onClick={handleReset}
         >
           Clear Form
         </Button>
         <Button 
-          onClick={handleSubmit}
+          type="submit"  // Add type="submit"
           disabled={isLoading}
+          onClick={(e) => handleSubmit(e)}
         >
           {isLoading ? 'Submitting...' : currentId ? 'Update Form' : 'Submit Form'}
         </Button>
       </div>
-    </div>
+      <SuccessAnimation 
+      isOpen={showSuccess}
+      message={successMessage}
+      onClose={() => setShowSuccess(false)}
+    />
+    </form>
+    
   );
 };
 

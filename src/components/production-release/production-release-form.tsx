@@ -9,6 +9,7 @@ import { toleranceData } from "@/lib/toleranceData";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { ProductionReleaseFormData, DEFAULT_PRODUCTION_RELEASE_STATE, Sample } from "@/lib/types";
+import SuccessAnimation from '@/components/ui/success-animation';
 
 interface ToleranceOption {
     value: number;
@@ -30,7 +31,8 @@ export default function ProductionReleaseForm() {
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [currentSample, setCurrentSample] = useState({ rowIndex: 0, sampleIndex: 0 });
-
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
     // Initialize samples based on toleranceData length
     useEffect(() => {
       setFormData(prev => ({
@@ -202,9 +204,13 @@ const handleSubmit = async (e: React.FormEvent) => {
       }
     } else {
       toast.success(currentId ? "Form updated successfully" : "Form submitted successfully");
-      if (!currentId) {
-        resetForm();
-      }
+      
+            toast.success('Production Release submitted successfully!');
+            setSuccessMessage('Production Release submitted successfully!');
+            setShowSuccess(true);
+      //if (!currentId) {
+       // resetForm();
+      //}
     }
   } catch (error) {
     console.error("Error submitting form:", error);
@@ -546,6 +552,11 @@ const handleSubmit = async (e: React.FormEvent) => {
     </div>
   </DialogContent>
 </Dialog>
+<SuccessAnimation 
+      isOpen={showSuccess}
+      message={successMessage}
+      onClose={() => setShowSuccess(false)}
+    />
     </div>
   );
 }
