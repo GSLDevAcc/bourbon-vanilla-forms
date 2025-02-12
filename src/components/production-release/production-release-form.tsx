@@ -49,7 +49,12 @@ export default function ProductionReleaseForm() {
       }));
     }, []);
     
-  
+  // Add this function at the top of your component
+const handleNumberOnly = (value: string) => {
+  const numbers = value.replace(/[^0-9]/g, '');
+  return numbers;
+};
+
     const resetForm = () => {
       const initializedSamples = toleranceData.map(() => ({
         sample1: "",
@@ -148,7 +153,21 @@ const handleSubmit = async (e: React.FormEvent) => {
     toast.error("Production Date and Evaluation Date are required");
     return;
   }
+// Date validations
+if (!isDateValid(formData.productionDate, formData.evaluationDate, 
+  "Evaluation Date cannot be before Production Date")) {
+  return;
+}
 
+if (formData.elaboratedDate && !isDateValid(formData.evaluationDate, 
+  formData.elaboratedDate, "Elaborated Date cannot be before Evaluation Date")) {
+  return;
+}
+
+if (formData.approvedDate && !isDateValid(formData.elaboratedDate, 
+  formData.approvedDate, "Approved Date cannot be before Elaborated Date")) {
+  return;
+}
   setIsLoading(true);
 
   const formPayload = {
@@ -219,6 +238,17 @@ const handleSubmit = async (e: React.FormEvent) => {
     setIsLoading(false);
   }
 };
+// Add these validation functions
+const isDateValid = (date1: string, date2: string, errorMessage: string): boolean => {
+  if (!date1 || !date2) return true; // Skip validation if either date is empty
+  const d1 = new Date(date1);
+  const d2 = new Date(date2);
+  if (d2 < d1) {
+    toast.error(errorMessage);
+    return false;
+  }
+  return true;
+};
 
   const handleToleranceSelect = (value: number) => {
     const { rowIndex, sampleIndex } = currentSample;
@@ -253,11 +283,12 @@ const handleSubmit = async (e: React.FormEvent) => {
       {/* Search Section */}
       <div className="flex gap-4 mb-6">
         <div className="flex-1">
-          <Input
+        <Input
             placeholder="Enter Production Release Order ID..."
             value={searchId}
-            onChange={(e) => setSearchId(e.target.value)}
-          />
+            onChange={(e) => setSearchId(handleNumberOnly(e.target.value))}
+            maxLength={10} // Add a reasonable max length
+/>
         </div>
         <Button 
           onClick={handleSearch}
@@ -278,40 +309,49 @@ const handleSubmit = async (e: React.FormEvent) => {
         <div>
           <label className="block text-sm font-medium mb-1">Production Release Order</label>
           <Input
-            value={formData.productionReleaseOrder}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                productionReleaseOrder: e.target.value,
-              }))
-            }
-          />
+              value={formData.productionReleaseOrder}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  productionReleaseOrder: handleNumberOnly(e.target.value),
+                }))
+              }
+              maxLength={10}
+            />
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Production Date</label>
           <Input
-            type="date"
-            value={formData.productionDate}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                productionDate: e.target.value,
-              }))
-            }
-          />
+              type="date"
+              value={formData.productionDate}
+              max={new Date().toISOString().split('T')[0]} // Can't be future date
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  productionDate: e.target.value,
+                }))
+              }
+            />
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Evaluation Date</label>
           <Input
-            type="date"
-            value={formData.evaluationDate}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                evaluationDate: e.target.value,
-              }))
-            }
-          />
+                type="date"
+                value={formData.evaluationDate}
+                min={formData.productionDate} // Can't be before production date
+                max={new Date().toISOString().split('T')[0]}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  if (!isDateValid(formData.productionDate, newDate, 
+                    "Evaluation Date cannot be before Production Date")) {
+                    return;
+                  }
+                  setFormData((prev) => ({
+                    ...prev,
+                    evaluationDate: newDate,
+                  }));
+                }}
+              />
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Lot Number</label>
@@ -466,16 +506,20 @@ const handleSubmit = async (e: React.FormEvent) => {
             }
           />
           <Input
-            type="date"
-            className="mt-2"
-            value={formData.elaboratedDate}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                elaboratedDate: e.target.value,
-              }))
-            }
-          />
+              type="date"
+              value={formData.elaboratedDate}
+              onChange={(e) => {
+                const newDate = e.target.value;
+                if (!isDateValid(formData.evaluationDate, newDate, 
+                  "Elaborated Date cannot be before Evaluation Date")) {
+                  return;
+                }
+                setFormData((prev) => ({
+                  ...prev,
+                  elaboratedDate: newDate,
+                }));
+              }}
+            />
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Approved by:</label>
@@ -489,16 +533,20 @@ const handleSubmit = async (e: React.FormEvent) => {
             }
           />
           <Input
-            type="date"
-            className="mt-2"
-            value={formData.approvedDate}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                approvedDate: e.target.value,
-              }))
-            }
-          />
+              type="date"
+              value={formData.approvedDate}
+              onChange={(e) => {
+                const newDate = e.target.value;
+                if (!isDateValid(formData.elaboratedDate, newDate, 
+                  "Approved Date cannot be before Elaborated Date")) {
+                  return;
+                }
+                setFormData((prev) => ({
+                  ...prev,
+                  approvedDate: newDate,
+                }));
+              }}
+            />
         </div>
       </div>
 
