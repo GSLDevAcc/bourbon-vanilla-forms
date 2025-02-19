@@ -336,33 +336,46 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
 
  
 
-  const addRawMaterialRow = () => {
-    if (!canAddNewRow()) {
-      toast.error("Please fill in the Material field in the current row before adding a new one");
-      return;
-    }
-  
-    setFormData(prev => ({
-      ...prev,
-      raw_materials: [
-        ...prev.raw_materials,
-        {
-          material: '',
-          supplier: '',
-          poNumber: '',
-          deliveryDate: '',
-          quantity: ''
-        }
-      ]
-    }));
-  };
+// Add this function to check if a row is completely filled
+const isRowComplete = (material: RawMaterial): boolean => {
+  return (
+    material.material.trim() !== '' &&
+    material.supplier.trim() !== '' &&
+    material.poNumber.trim() !== '' &&
+    material.deliveryDate.trim() !== '' &&
+    material.quantity.trim() !== ''
+  );
+};
 
-  const canAddNewRow = () => {
-    if (formData.raw_materials.length === 0) return true;
-    
-    const lastRow = formData.raw_materials[formData.raw_materials.length - 1];
-    return lastRow.material.trim() !== ''; // Check if material field is not empty
-  };
+// Updated canAddNewRow function
+const canAddNewRow = () => {
+  if (formData.raw_materials.length === 0) return true;
+  
+  const lastRow = formData.raw_materials[formData.raw_materials.length - 1];
+  return isRowComplete(lastRow);
+};
+
+// Modified addRawMaterialRow function
+const addRawMaterialRow = () => {
+  if (!canAddNewRow()) {
+    toast.error("Please fill in all fields in the current row before adding a new one");
+    return;
+  }
+
+  setFormData(prev => ({
+    ...prev,
+    raw_materials: [
+      ...prev.raw_materials,
+      {
+        material: '',
+        supplier: '',
+        poNumber: '',
+        deliveryDate: '',
+        quantity: ''
+      }
+    ]
+  }));
+};
   
   const removeRawMaterialRow = (index: number) => {
     setFormData(prev => ({
@@ -610,80 +623,73 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {formData.raw_materials.length === 0 ? (
-          <TableRow>
-            <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-              No materials added. Click "Add Material" to start.
-            </TableCell>
-          </TableRow>
-        ) : (
-          formData.raw_materials.map((material, index) => (
-            <TableRow key={index} className="group hover:bg-gray-50">
-              <TableCell>
-                <Input
-                  type="text"
-                  value={material.material}
-                  onChange={(e) => handleRawMaterialChange(index, 'material', e.target.value)}
-                  placeholder="Enter material *"
-                  className={`${!material.material && 'border-red-500'}`} // Visual feedback for empty material
-                  required
-                />
-              </TableCell>
-              <TableCell>
-                <Input
-                  type="text"
-                  value={material.supplier}
-                  onChange={(e) => handleRawMaterialChange(index, 'supplier', e.target.value)}
-                  placeholder="Enter supplier"
-                />
-              </TableCell>
-              <TableCell>
-                <Input
-                  type="text"
-                  value={material.poNumber}
-                  onChange={(e) => handleRawMaterialChange(index, 'poNumber', e.target.value)}
-                  placeholder="Enter PO number"
-                />
-              </TableCell>
-              <TableCell>
-                    <div className="relative">
-                      <Input
-                        type="date"
-                        value={material.deliveryDate}
-                        onChange={(e) => handleRawMaterialChange(index, 'deliveryDate', e.target.value)}
-                        onKeyDown={(e) => e.preventDefault()}
-                        className="cursor-pointer bg-white hover:bg-gray-50 transition-colors"
-                        style={{
-                          colorScheme: 'normal',
-                          backgroundColor: 'white'
-                        }}
-                      />
-                    </div>
-                  </TableCell>
-              <TableCell>
-                <Input
-                  type="number"
-                  min="0"
-                  value={material.quantity}
-                  onChange={(e) => handleRawMaterialChange(index, 'quantity', e.target.value)}
-                  placeholder="Enter quantity"
-                />
-              </TableCell>
-              <TableCell>
-                <Button
-                  type="button"
-                  onClick={() => removeRawMaterialRow(index)}
-                  variant="destructive"
-                  size="sm"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity"
-                  disabled={formData.raw_materials.length === 1} // Prevent deleting the last row
-                >
-                  <RiDeleteBin6Line className="w-4 h-4" />
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))
-        )}
+      {formData.raw_materials.map((material, index) => (
+  <TableRow key={index} className="group hover:bg-gray-50">
+    <TableCell>
+      <Input
+        type="text"
+        value={material.material}
+        onChange={(e) => handleRawMaterialChange(index, 'material', e.target.value)}
+        placeholder="Enter material *"
+        className={`${!material.material && 'border-red-500'}`}
+        required
+      />
+    </TableCell>
+    <TableCell>
+      <Input
+        type="text"
+        value={material.supplier}
+        onChange={(e) => handleRawMaterialChange(index, 'supplier', e.target.value)}
+        placeholder="Enter supplier *"
+        className={`${!material.supplier && 'border-red-500'}`}
+        required
+      />
+    </TableCell>
+    <TableCell>
+      <Input
+        type="text"
+        value={material.poNumber}
+        onChange={(e) => handleRawMaterialChange(index, 'poNumber', e.target.value)}
+        placeholder="Enter PO number *"
+        className={`${!material.poNumber && 'border-red-500'}`}
+        required
+      />
+    </TableCell>
+    <TableCell>
+      <Input
+        type="date"
+        value={material.deliveryDate}
+        onChange={(e) => handleRawMaterialChange(index, 'deliveryDate', e.target.value)}
+        onKeyDown={(e) => e.preventDefault()}
+        className={`cursor-pointer ${!material.deliveryDate && 'border-red-500'}`}
+        required
+      />
+    </TableCell>
+    <TableCell>
+      <Input
+        type="number"
+        min="0"
+        value={material.quantity}
+        onChange={(e) => handleRawMaterialChange(index, 'quantity', e.target.value)}
+        placeholder="Enter quantity *"
+        className={`${!material.quantity && 'border-red-500'}`}
+        required
+      />
+    </TableCell>
+    <TableCell>
+      <Button
+        type="button"
+        onClick={() => removeRawMaterialRow(index)}
+        variant="destructive"
+        size="sm"
+        className="opacity-0 group-hover:opacity-100 transition-opacity"
+        disabled={formData.raw_materials.length === 1}
+      >
+        <RiDeleteBin6Line className="w-4 h-4" />
+      </Button>
+    </TableCell>
+  </TableRow>
+))}
       </TableBody>
     </Table>
   </div>
