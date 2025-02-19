@@ -1,3 +1,5 @@
+
+/* eslint-disable react/no-unescaped-entities */
 // src/components/production-sheet/production-sheet-form.tsx
 "use client";
 
@@ -26,13 +28,13 @@ import {
   ControlItem,
   RawMaterial 
 } from '@/lib/types';
+
 import SuccessAnimation from '@/components/ui/success-animation';
 // Import the icons at the top of your file
 import { IoMdAdd } from "react-icons/io";
 import { RiDeleteBin6Line } from "react-icons/ri";
 
-
-const ProductionSheetForm = () => {
+const ProductionSheetForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchId, setSearchId] = useState('');
@@ -43,7 +45,6 @@ const [showSuccess, setShowSuccess] = useState(false);
   // Form Handlers
 
   useEffect(() => {
-    // Test Supabase connection
     const testConnection = async () => {
       try {
         const { data, error } = await supabase
@@ -63,7 +64,7 @@ const [showSuccess, setShowSuccess] = useState(false);
   
     testConnection();
   }, []);
-  
+
   const handleProcessStepChange = (field: keyof ProcessStep, value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -89,9 +90,9 @@ const [showSuccess, setShowSuccess] = useState(false);
   };
 
   // Add this function near the top of your component
-const handleNumberOnly = (value: string) => {
-  return value.replace(/[^0-9]/g, '');
-};
+  const handleNumberOnly = (value: string): string => {
+    return value.replace(/[^0-9]/g, '');
+  };
   // Add these functions to your ProductionSheetForm component
 
 const validateRequiredFields = (formData: FormState): string[] => {
@@ -248,21 +249,7 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
     return new Date(processDate) >= new Date(formDate);
   };
 
-  // Add validation checks to the handleSubmit function
-if (!validateProcessStepDate(formData.process_steps.date, formData.date)) {
-  toast.error('Process step date cannot be before form date');
-  return;
-}
-
-if (!validateTimeOrder(formData.filtering.timeStarted, formData.filtering.timeEnded)) {
-  toast.error('Filtering end time cannot be before start time');
-  return;
-}
-
-if (!validateTimeOrder(formData.sieving.timeStarted, formData.sieving.timeEnded)) {
-  toast.error('Sieving end time cannot be before start time');
-  return;
-}
+  
 
   const handleSearch = async () => {
     if (!searchId.trim()) {
@@ -369,6 +356,7 @@ if (!validateTimeOrder(formData.sieving.timeStarted, formData.sieving.timeEnded)
       ]
     }));
   };
+
   const canAddNewRow = () => {
     if (formData.raw_materials.length === 0) return true;
     
@@ -409,6 +397,21 @@ if (!validateTimeOrder(formData.sieving.timeStarted, formData.sieving.timeEnded)
         if (existingData) {
           toast.error('A production sheet with this Release Order already exists');
           setIsLoading(false);
+          return;
+        }
+        // Add validation checks to the handleSubmit function
+        if (!validateProcessStepDate(formData.process_steps.date, formData.date)) {
+          toast.error('Process step date cannot be before form date');
+          return;
+        }
+
+        if (!validateTimeOrder(formData.filtering.timeStarted, formData.filtering.timeEnded)) {
+          toast.error('Filtering end time cannot be before start time');
+          return;
+        }
+
+        if (!validateTimeOrder(formData.sieving.timeStarted, formData.sieving.timeEnded)) {
+          toast.error('Sieving end time cannot be before start time');
           return;
         }
       }
@@ -940,10 +943,9 @@ if (!validateTimeOrder(formData.sieving.timeStarted, formData.sieving.timeEnded)
         <h3 className="text-lg font-semibold mb-4">Any Glass Breakage During Production</h3>
         <div className="grid grid-cols-3 gap-4 items-center">
           <div className="flex items-center gap-4">
-            <RadioGroup
+          <RadioGroup
               value={formData.glass_breakage.occurred ? "yes" : "no"}
-              defaultValue="no"
-              onValueChange={(value: string) => 
+              onValueChange={(value) => 
                 handleGlassBreakageChange('occurred', value === "yes")
               }
             >
