@@ -41,6 +41,29 @@ const ProductionSheetForm = () => {
 const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   // Form Handlers
+
+  useEffect(() => {
+    // Test Supabase connection
+    const testConnection = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('production_sheets')
+          .select('count')
+          .limit(1);
+        
+        if (error) {
+          console.error('Supabase connection error:', error);
+        } else {
+          console.log('Supabase connection successful');
+        }
+      } catch (error) {
+        console.error('Failed to connect to Supabase:', error);
+      }
+    };
+  
+    testConnection();
+  }, []);
+  
   const handleProcessStepChange = (field: keyof ProcessStep, value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -324,27 +347,7 @@ if (!validateTimeOrder(formData.sieving.timeStarted, formData.sieving.timeEnded)
       }));
     };
 
-  useEffect(() => {
-    // Test Supabase connection
-    const testConnection = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('production_sheets')
-          .select('count')
-          .limit(1);
-        
-        if (error) {
-          console.error('Supabase connection error:', error);
-        } else {
-          console.log('Supabase connection successful');
-        }
-      } catch (error) {
-        console.error('Failed to connect to Supabase:', error);
-      }
-    };
-  
-    testConnection();
-  }, []);
+ 
 
   const addRawMaterialRow = () => {
     if (!canAddNewRow()) {
