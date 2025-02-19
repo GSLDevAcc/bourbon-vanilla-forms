@@ -305,7 +305,26 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
       }
     };
 
+   // Add validation function for production steps
+    const isProductionStepComplete = (step: ProductionStep): boolean => {
+      return Object.values(step).every(value => value.trim() !== '');
+    };
+    
+    // Updated canAddProductionRow function
+    const canAddProductionRow = () => {
+      if (formData.production_steps.length === 0) return true;
+      
+      const lastRow = formData.production_steps[formData.production_steps.length - 1];
+      return isProductionStepComplete(lastRow);
+    };
+    
+    // Modified addProductionRow function with validation
     const addProductionRow = () => {
+      if (!canAddProductionRow()) {
+        toast.error("Please fill in all fields in the current production step before adding a new one");
+        return;
+      }
+    
       setFormData(prev => ({
         ...prev,
         production_steps: [
@@ -853,43 +872,79 @@ const addRawMaterialRow = () => {
       </div>
 
       {/* Production Steps */}
+      {/* Production Steps Section */}
       <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-semibold mb-4">Production</h3>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Person performing</TableHead>
-                <TableHead>Packaging check</TableHead>
-                <TableHead>Pod placement</TableHead>
-                <TableHead>Extract filled</TableHead>
-                <TableHead>Product level</TableHead>
-                <TableHead>Bottles rinsed</TableHead>
-                <TableHead>Label stamped</TableHead>
-                <TableHead>Proof seal</TableHead>
-                <TableHead>Product labeled</TableHead>
-                <TableHead>Carton placement</TableHead>
-                <TableHead>Shrink plastic</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {formData.production_steps.map((step, index) => (
-                <TableRow key={index}>
-                  {Object.keys(step).map((key) => (
-                    <TableCell key={key}>
-                      <Input
-                        type="text"
-                        value={step[key as keyof ProductionStep]}
-                        onChange={(e) => handleProductionStepChange(index, key as keyof ProductionStep, e.target.value)}
-                      />
-                    </TableCell>
-                  ))}
-                </TableRow>
+  <div className="flex justify-between items-center mb-4">
+    <h3 className="text-lg font-semibold">Production</h3>
+    <Button
+      type="button"
+      onClick={addProductionRow}
+      className="flex items-center gap-2"
+      variant="outline"
+      disabled={!canAddProductionRow()} // Disable button if validation fails
+    >
+      <IoMdAdd className="w-4 h-4" /> Add Production Step
+    </Button>
+  </div>
+  <div className="overflow-x-auto">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Person performing</TableHead>
+          <TableHead>Packaging check</TableHead>
+          <TableHead>Pod placement</TableHead>
+          <TableHead>Extract filled</TableHead>
+          <TableHead>Product level</TableHead>
+          <TableHead>Bottles rinsed</TableHead>
+          <TableHead>Label stamped</TableHead>
+          <TableHead>Proof seal</TableHead>
+          <TableHead>Product labeled</TableHead>
+          <TableHead>Carton placement</TableHead>
+          <TableHead>Shrink plastic</TableHead>
+          <TableHead className="w-[100px]">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {formData.production_steps.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={12} className="text-center py-8 text-gray-500">
+              No production steps added. Click "Add Production Step" to start.
+            </TableCell>
+          </TableRow>
+        ) : (
+          formData.production_steps.map((step, index) => (
+            <TableRow key={index} className="group hover:bg-gray-50">
+              {Object.keys(step).map((key) => (
+                <TableCell key={key}>
+                  <Input
+                    type="text"
+                    value={step[key as keyof ProductionStep]}
+                    onChange={(e) => handleProductionStepChange(index, key as keyof ProductionStep, e.target.value)}
+                    placeholder={`Enter ${key.replace(/([A-Z])/g, ' $1').toLowerCase()} *`}
+                    className={`w-full ${!step[key as keyof ProductionStep] && 'border-red-500'}`}
+                    required
+                  />
+                </TableCell>
               ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+              <TableCell>
+                <Button
+                  type="button"
+                  onClick={() => removeProductionRow(index)}
+                  variant="destructive"
+                  size="sm"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  disabled={formData.production_steps.length === 1} // Prevent deleting last row
+                >
+                  <RiDeleteBin6Line className="w-4 h-4" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))
+        )}
+      </TableBody>
+    </Table>
+  </div>
+</div>
 
       {/* Control During Production */}
       <div className="bg-white p-6 rounded-lg shadow">

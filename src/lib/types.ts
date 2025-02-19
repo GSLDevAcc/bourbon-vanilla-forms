@@ -195,7 +195,7 @@ export const DEFAULT_FORM_STATE: FormState = {
     timeCheckEnded: '',
     checkedBy: ''
   },
-  production_steps: Array(5).fill({
+  production_steps: Array(1).fill({
     personPerforming: '',
     packagingCheck: '',
     podPlacement: '',
