@@ -1,6 +1,13 @@
 // src/components/production-release/production-release-form.tsx
 "use client";
 
+
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+
 import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,12 +18,14 @@ import { toast } from "sonner";
 import { ProductionReleaseFormData, DEFAULT_PRODUCTION_RELEASE_STATE, Sample } from "@/lib/types";
 import SuccessAnimation from '@/components/ui/success-animation';
 
+
 interface ToleranceOption {
     value: number;
     label: string;
     color: string;
   }
   
+
   interface ToleranceDataItem {
     name: string;
     options: ToleranceOption[];
@@ -33,6 +42,11 @@ export default function ProductionReleaseForm() {
   const [currentSample, setCurrentSample] = useState({ rowIndex: 0, sampleIndex: 0 });
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Add these states in your component
+  const [open, setOpen] = useState(false);
+  const [releaseOrders, setReleaseOrders] = useState<string[]>([]);
+
     // Initialize samples based on toleranceData length
     useEffect(() => {
       setFormData(prev => ({
@@ -54,6 +68,29 @@ const handleNumberOnly = (value: string) => {
   const numbers = value.replace(/[^0-9]/g, '');
   return numbers;
 };
+
+useEffect(() => {
+  const fetchReleaseOrders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('production_releases')
+        .select('production_release_order')
+        .order('production_release_order', { ascending: true });
+
+      if (error) throw error;
+
+      if (data) {
+        const orders = data.map(item => item.production_release_order);
+        setReleaseOrders(orders);
+      }
+    } catch (error) {
+      console.error('Error fetching release orders:', error);
+      toast.error('Error loading release orders');
+    }
+  };
+
+  fetchReleaseOrders();
+}, []);
 
     const resetForm = () => {
       const initializedSamples = toleranceData.map(() => ({
@@ -280,24 +317,72 @@ const isDateValid = (date1: string, date2: string, errorMessage: string): boolea
 
   return (
     <div className="w-full max-w-7xl mx-auto p-6 space-y-6">
-      {/* Search Section */}
-      <div className="flex gap-4 mb-6">
-        <div className="flex-1">
-        <Input
-            placeholder="Enter Production Release Order ID..."
-            value={searchId}
-            onChange={(e) => setSearchId(handleNumberOnly(e.target.value))}
-            maxLength={10} // Add a reasonable max length
-/>
-        </div>
-        <Button 
-          onClick={handleSearch}
-          disabled={isSearching}
+
+{/* Search Section */}
+{/* Search Section */}
+<div className="flex gap-4 mb-6">
+  <div className="flex-1">
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
           variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
         >
-          {isSearching ? "Searching..." : "Search"}
+          {searchId
+            ? releaseOrders.find((order) => order === searchId)
+            : "Search Production Release Order..."}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
-      </div>
+      </PopoverTrigger>
+      <PopoverContent className="w-full p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput 
+            placeholder="Search release order..." 
+            value={searchId}
+            autoFocus
+            onValueChange={(value) => {
+              setSearchId(handleNumberOnly(value));
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleSearch();
+                setOpen(false);
+              }
+            }}
+          />
+          <CommandEmpty>No release order found.</CommandEmpty>
+          <CommandGroup className="max-h-60 overflow-auto">
+            {releaseOrders
+              .filter((order) => 
+                order.includes(searchId)
+              )
+              .map((order) => (
+                <CommandItem
+                  key={order}
+                  value={order}
+                  onSelect={() => {
+                    setSearchId(order); // Set the selected order
+                    setOpen(false); // Close the dropdown
+                    handleSearch(); // Trigger search automatically
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      searchId === order ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  {order}
+                </CommandItem>
+              ))}
+          </CommandGroup>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  </div>
+</div>
 
       {/* Form Title */}
       <div className="text-center border-b pb-4">

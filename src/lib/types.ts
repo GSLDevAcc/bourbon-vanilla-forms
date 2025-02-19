@@ -139,7 +139,7 @@ export const DEFAULT_FORM_STATE: FormState = {
   filledDate: '',
   approvedBy: '',
   approvedDate: '',
-  raw_materials: Array(10).fill({
+  raw_materials: Array(1).fill({
     material: '',
     supplier: '',
     poNumber: '',

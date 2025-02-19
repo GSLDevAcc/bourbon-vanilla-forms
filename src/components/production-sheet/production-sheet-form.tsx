@@ -62,6 +62,10 @@ const [showSuccess, setShowSuccess] = useState(false);
     });
   };
 
+  // Add this function near the top of your component
+const handleNumberOnly = (value: string) => {
+  return value.replace(/[^0-9]/g, '');
+};
   // Add these functions to your ProductionSheetForm component
 
 const validateRequiredFields = (formData: FormState): string[] => {
@@ -207,6 +211,18 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
     });
   };
 
+
+  const validateTimeOrder = (startTime: string, endTime: string): boolean => {
+    if (!startTime || !endTime) return true;
+    return new Date(`1970-01-01T${startTime}`) < new Date(`1970-01-01T${endTime}`);
+  };
+  
+  const validateProcessStepDate = (processDate: string, formDate: string): boolean => {
+    if (!processDate || !formDate) return true;
+    return new Date(processDate) >= new Date(formDate);
+  };
+
+  
   const handleSearch = async () => {
     if (!searchId.trim()) {
       toast.error('Please enter a Production Release Order ID');
@@ -230,7 +246,7 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
         return;
       }
   
-      setCurrentId(data.id);
+    setCurrentId(data.id);
     setFormData({
       productReleaseOrder: data.product_release_order,
           productReference: data.product_reference,
@@ -283,7 +299,28 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
     testConnection();
   }, []);
 
+  const addRawMaterialRow = () => {
+    setFormData(prev => ({
+      ...prev,
+      raw_materials: [
+        ...prev.raw_materials,
+        {
+          material: '',
+          supplier: '',
+          poNumber: '',
+          deliveryDate: '',
+          quantity: ''
+        }
+      ]
+    }));
+  };
   
+  const removeRawMaterialRow = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      raw_materials: prev.raw_materials.filter((_, i) => i !== index)
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -376,10 +413,11 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
     <form onSubmit={handleSubmit} className="w-full max-w-7xl mx-auto p-4">
       {/* Search Section */}
       <div className="flex gap-4 mb-6">
+      
         <Input
           placeholder="Enter Production Release Order ID..."
           value={searchId}
-          onChange={(e) => setSearchId(e.target.value)}
+          onChange={(e) => setSearchId(handleNumberOnly(e.target.value))}
           className="flex-1"
         />
         <Button 
@@ -405,17 +443,19 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
         {/* Base Form Fields */}
         <div>
           <Label>Product Release Order</Label>
+          
           <Input
             value={formData.productReleaseOrder}
             onChange={(e) => setFormData(prev => ({
               ...prev,
-              productReleaseOrder: e.target.value
+              productReleaseOrder: handleNumberOnly(e.target.value)
             }))}
           />
         </div>
 
         <div>
           <Label>Date</Label>
+
           <Input
             type="date"
             value={formData.date}
@@ -424,6 +464,7 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
               date: e.target.value
             }))}
           />
+
         </div>
 
         <div>
@@ -439,13 +480,16 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
 
         <div>
           <Label>Quantity Produced</Label>
-          <Input
-            value={formData.quantityProduced}
-            onChange={(e) => setFormData(prev => ({
-              ...prev,
-              quantityProduced: e.target.value
-            }))}
-          />
+         
+            <Input
+              value={formData.quantityProduced}
+              type="number"
+              min="0"
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                quantityProduced: handleNumberOnly(e.target.value)
+              }))}
+            />
         </div>
 
         <div className="col-span-2">
@@ -472,10 +516,19 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
       </div>
 
             {/* Raw Materials Section */}
-<div className="bg-white p-6 rounded-lg shadow">
-  <h3 className="text-lg font-semibold mb-4">Raw Materials</h3>
-  <div className="overflow-x-auto">
-    <Table>
+            <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Raw Materials</h3>
+            <Button
+              type="button"
+              onClick={addRawMaterialRow}
+              className="bg-green-500 hover:bg-green-600"
+            >
+              +
+            </Button>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Material</TableHead>
@@ -518,10 +571,21 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
             </TableCell>
             <TableCell>
               <Input
-                type="text"
+                type="number"
+                min="0"
                 value={material.quantity}
-                onChange={(e) => handleRawMaterialChange(index, 'quantity', e.target.value)}
+                onChange={(e) => handleRawMaterialChange(index, 'quantity', handleNumberOnly(e.target.value))}
               />
+            </TableCell>
+            <TableCell>
+              <Button
+                type="button"
+                onClick={() => removeRawMaterialRow(index)}
+                variant="destructive"
+                size="sm"
+              >
+                -
+              </Button>
             </TableCell>
           </TableRow>
         ))}
