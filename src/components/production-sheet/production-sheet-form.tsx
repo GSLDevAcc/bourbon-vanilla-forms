@@ -27,6 +27,9 @@ import {
   RawMaterial 
 } from '@/lib/types';
 import SuccessAnimation from '@/components/ui/success-animation';
+// Import the icons at the top of your file
+import { IoMdAdd } from "react-icons/io";
+import { RiDeleteBin6Line } from "react-icons/ri";
 
 
 const ProductionSheetForm = () => {
@@ -222,7 +225,22 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
     return new Date(processDate) >= new Date(formDate);
   };
 
-  
+  // Add validation checks to the handleSubmit function
+if (!validateProcessStepDate(formData.process_steps.date, formData.date)) {
+  toast.error('Process step date cannot be before form date');
+  return;
+}
+
+if (!validateTimeOrder(formData.filtering.timeStarted, formData.filtering.timeEnded)) {
+  toast.error('Filtering end time cannot be before start time');
+  return;
+}
+
+if (!validateTimeOrder(formData.sieving.timeStarted, formData.sieving.timeEnded)) {
+  toast.error('Sieving end time cannot be before start time');
+  return;
+}
+
   const handleSearch = async () => {
     if (!searchId.trim()) {
       toast.error('Please enter a Production Release Order ID');
@@ -277,6 +295,35 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
       }
     };
 
+    const addProductionRow = () => {
+      setFormData(prev => ({
+        ...prev,
+        production_steps: [
+          ...prev.production_steps,
+          {
+            personPerforming: '',
+            packagingCheck: '',
+            podPlacement: '',
+            extractFilled: '',
+            productLevel: '',
+            bottlesRinsed: '',
+            labelStamped: '',
+            proofSeal: '',
+            productLabeled: '',
+            cartonPlacement: '',
+            shrinkPlastic: ''
+          }
+        ]
+      }));
+    };
+    
+    const removeProductionRow = (index: number) => {
+      setFormData(prev => ({
+        ...prev,
+        production_steps: prev.production_steps.filter((_, i) => i !== index)
+      }));
+    };
+
   useEffect(() => {
     // Test Supabase connection
     const testConnection = async () => {
@@ -300,6 +347,11 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
   }, []);
 
   const addRawMaterialRow = () => {
+    if (!canAddNewRow()) {
+      toast.error("Please fill in the Material field in the current row before adding a new one");
+      return;
+    }
+  
     setFormData(prev => ({
       ...prev,
       raw_materials: [
@@ -313,6 +365,12 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
         }
       ]
     }));
+  };
+  const canAddNewRow = () => {
+    if (formData.raw_materials.length === 0) return true;
+    
+    const lastRow = formData.raw_materials[formData.raw_materials.length - 1];
+    return lastRow.material.trim() !== ''; // Check if material field is not empty
   };
   
   const removeRawMaterialRow = (index: number) => {
@@ -420,6 +478,7 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
           onChange={(e) => setSearchId(handleNumberOnly(e.target.value))}
           className="flex-1"
         />
+
         <Button 
           type="button"
           onClick={handleSearch}
@@ -428,6 +487,7 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
         >
           {isSearching ? 'Searching...' : 'Search'}
         </Button>
+
       </div>
 
       {/* Header Section */}
@@ -516,19 +576,23 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
       </div>
 
             {/* Raw Materials Section */}
-            <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Raw Materials</h3>
-            <Button
-              type="button"
-              onClick={addRawMaterialRow}
-              className="bg-green-500 hover:bg-green-600"
-            >
-              +
-            </Button>
-          </div>
-          <div className="overflow-x-auto">
-            <Table>
+           {/* Raw Materials Section */}
+          
+<div className="bg-white p-6 rounded-lg shadow">
+  <div className="flex justify-between items-center mb-4">
+    <h3 className="text-lg font-semibold">Raw Materials</h3>
+    <Button
+      type="button"
+      onClick={addRawMaterialRow}
+      className="flex items-center gap-2"
+      variant="outline"
+      disabled={!canAddNewRow()} // Disable button if validation fails
+    >
+      <IoMdAdd className="w-4 h-4" /> Add Material
+    </Button>
+  </div>
+  <div className="overflow-x-auto">
+    <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Material</TableHead>
@@ -536,59 +600,84 @@ const validateFormBeforeSubmit = (formData: FormState): boolean => {
           <TableHead>PO Number</TableHead>
           <TableHead>Delivery Date</TableHead>
           <TableHead>Quantity</TableHead>
+          <TableHead className="w-[100px]">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {formData.raw_materials.map((material, index) => (
-          <TableRow key={index}>
-            <TableCell>
-              <Input
-                type="text"
-                value={material.material}
-                onChange={(e) => handleRawMaterialChange(index, 'material', e.target.value)}
-              />
-            </TableCell>
-            <TableCell>
-              <Input
-                type="text"
-                value={material.supplier}
-                onChange={(e) => handleRawMaterialChange(index, 'supplier', e.target.value)}
-              />
-            </TableCell>
-            <TableCell>
-              <Input
-                type="text"
-                value={material.poNumber}
-                onChange={(e) => handleRawMaterialChange(index, 'poNumber', e.target.value)}
-              />
-            </TableCell>
-            <TableCell>
-              <Input
-                type="date"
-                value={material.deliveryDate}
-                onChange={(e) => handleRawMaterialChange(index, 'deliveryDate', e.target.value)}
-              />
-            </TableCell>
-            <TableCell>
-              <Input
-                type="number"
-                min="0"
-                value={material.quantity}
-                onChange={(e) => handleRawMaterialChange(index, 'quantity', handleNumberOnly(e.target.value))}
-              />
-            </TableCell>
-            <TableCell>
-              <Button
-                type="button"
-                onClick={() => removeRawMaterialRow(index)}
-                variant="destructive"
-                size="sm"
-              >
-                -
-              </Button>
+        {formData.raw_materials.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+              No materials added. Click "Add Material" to start.
             </TableCell>
           </TableRow>
-        ))}
+        ) : (
+          formData.raw_materials.map((material, index) => (
+            <TableRow key={index} className="group hover:bg-gray-50">
+              <TableCell>
+                <Input
+                  type="text"
+                  value={material.material}
+                  onChange={(e) => handleRawMaterialChange(index, 'material', e.target.value)}
+                  placeholder="Enter material *"
+                  className={`${!material.material && 'border-red-500'}`} // Visual feedback for empty material
+                  required
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  type="text"
+                  value={material.supplier}
+                  onChange={(e) => handleRawMaterialChange(index, 'supplier', e.target.value)}
+                  placeholder="Enter supplier"
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  type="text"
+                  value={material.poNumber}
+                  onChange={(e) => handleRawMaterialChange(index, 'poNumber', e.target.value)}
+                  placeholder="Enter PO number"
+                />
+              </TableCell>
+              <TableCell>
+                    <div className="relative">
+                      <Input
+                        type="date"
+                        value={material.deliveryDate}
+                        onChange={(e) => handleRawMaterialChange(index, 'deliveryDate', e.target.value)}
+                        onKeyDown={(e) => e.preventDefault()}
+                        className="cursor-pointer bg-white hover:bg-gray-50 transition-colors"
+                        style={{
+                          colorScheme: 'normal',
+                          backgroundColor: 'white'
+                        }}
+                      />
+                    </div>
+                  </TableCell>
+              <TableCell>
+                <Input
+                  type="number"
+                  min="0"
+                  value={material.quantity}
+                  onChange={(e) => handleRawMaterialChange(index, 'quantity', e.target.value)}
+                  placeholder="Enter quantity"
+                />
+              </TableCell>
+              <TableCell>
+                <Button
+                  type="button"
+                  onClick={() => removeRawMaterialRow(index)}
+                  variant="destructive"
+                  size="sm"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  disabled={formData.raw_materials.length === 1} // Prevent deleting the last row
+                >
+                  <RiDeleteBin6Line className="w-4 h-4" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))
+        )}
       </TableBody>
     </Table>
   </div>
